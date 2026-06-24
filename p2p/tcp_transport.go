@@ -18,6 +18,24 @@ If we already have TCP, why create TCPTransport?
 Ans: TCP is just a protocol.TCPTransport is OUR object that USES TCP.
 */
 
+// TCP Peer represents the remote node over a TCP established connection
+type TCPPeer struct {
+    // conn is the underlying connection of the peer
+    conn net.Conn
+
+    // If we dial and retrieve a connection => outbound == true
+    // If we accept and retrive a connection => outbound == false
+    outbound bool
+}
+
+func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer{
+    return &TCPPeer{
+        conn : conn,
+        outbound : outbound,
+    }
+}
+
+
 // TCPTransport manages peer-to-peer communication over TCP.
 type TCPTransport struct {
 	listenAddress string // Address this node listens on (e.g. ":3000")
@@ -35,7 +53,7 @@ func NewTCPTransport(listenAddr string) *TCPTransport{
 
 func (t *TCPTransport) ListenAndAccept() error{
     var err error
-    ln, err := net.Listen("tcp",t.listenAddress)
+    ln, err := net.Listen("tcp",t.listenAddress) 
     if err != nil{
         return err
 }
@@ -58,338 +76,86 @@ func (t *TCPTransport) startAcceptLoop(){
 }
 
 func (t *TCPTransport) handleConn(conn net.Conn){
-
+    peer := NewTCPPeer(conn, true)
+    fmt.Printf("new incoming connection %+v\n", peer)
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// Function Explanations
+// 1. ListenAndAccept
 /*
-===============================================================================
-BEGINNER NOTES - TCP TRANSPORT
-===============================================================================
+Imagine:
 
-1. WHAT IS THIS FILE DOING?
----------------------------
+    Arshal's Node  <---------------->  Bob's Node
 
-This file defines the Network Layer of GoOrbit.
+Bob wants to connect to Arshal.
 
-GoOrbit Architecture:
+Question:
+    How does Bob know Arshal is ready?
 
-    GoOrbit
-    │
-    ├── Storage Layer
-    ├── Encryption Layer
-    ├── Chunking Layer
-    └── Network Layer
-          │
-          └── TCPTransport
+Suppose:
+    ✓ Arshal's laptop is ON
+        -> Not enough
 
-Responsibilities of TCPTransport:
+    ✓ GoOrbit is installed
+        -> Not enough
 
-    ✓ Listen for incoming connections
-    ✓ Connect to other nodes
-    ✓ Track connected peers
-    ✓ Send data
-    ✓ Receive data
+    ✓ GoOrbit process is running
+        -> Still not enough
 
-Think of TCPTransport as the Network Manager of a node.
+Why?
 
+Because the Operating System does not know
+which application should receive incoming
+TCP connections.
 
-2. WHAT IS A STRUCT?
---------------------
+--------------------------------------------------
+Real World Analogy
+--------------------------------------------------
 
-Java:
+Bob wants to visit your house.
 
-    class Student {
-        String name;
-        int age;
-    }
+Before Bob arrives:
+    You must open the door.
 
-Go:
+If the door is closed:
+    Bob knocks
+    No response
+    Visit fails
 
-    type Student struct {
-        name string
-        age  int
-    }
+--------------------------------------------------
+Networking Equivalent
+--------------------------------------------------
 
-Usage:
+Before Bob can connect:
 
-    s := Student{
-        name: "Arshal",
-        age: 21,
-    }
+    Arshal must:
+        1. Open a TCP port
+        2. Start listening on that port
 
-In this file:
+This is exactly what:
 
-    type TCPTransport struct {...}
+    net.Listen("tcp", ":3000")
 
-is simply a custom data type that stores all network-related information.
+does.
 
+It tells the OS:
 
-3. WHAT IS net.Listener?
-------------------------
+    "If anyone connects to port 3000,
+     send those connections to me."
 
-A Listener waits for incoming network connections.
+What Problem Does It Solve ?
 
-Real Life Analogy:
+Without it:
 
-    Customer arrives
-           ↓
-      Door opens
-           ↓
-     Customer enters
+GoOrbit starts
+but nobody can connect to it
 
-Networking:
+With it:
 
-    Connection arrives
-            ↓
-     Listener accepts
-            ↓
-     Connection established
+GoOrbit starts
+opens TCP port
+waits for peers
+accepts peers
 
-Example:
-
-    listener, err := net.Listen("tcp", ":3000")
-
-This opens Port 3000 and waits for connections.
-
-Visual:
-
-    Waiting...
-    Waiting...
-    Waiting...
-    Connection Received!
-
-
-4. WHAT IS A PEER?
-------------------
-
-In Distributed Systems:
-
-    Node A
-    Node B
-    Node C
-
-Every node sees other nodes as Peers.
-
-Example:
-
-    A <------> B
-
-For A:
-
-    Peer = B
-
-For B:
-
-    Peer = A
-
-A Peer simply means:
-
-    "Another machine participating in the network"
-
-
-5. WHAT IS map[net.Addr]Peer?
------------------------------
-
-Java:
-
-    HashMap<String, User>
-
-Go:
-
-    map[string]User
-
-Current Code:
-
-    map[net.Addr]Peer
-
-Meaning:
-
-    Network Address -> Peer
-
-Example:
-
-    192.168.1.10:3000 -> PeerA
-    192.168.1.11:3000 -> PeerB
-    192.168.1.12:3000 -> PeerC
-
-Purpose:
-
-    Keep track of connected nodes.
-
-
-6. WHAT IS sync.RWMutex?
-------------------------
-
-Mutex = Mutual Exclusion
-
-Used to prevent multiple goroutines from modifying
-shared data at the same time.
-
-Problem:
-
-    Goroutine 1 -> Add Peer
-    Goroutine 2 -> Remove Peer
-    Goroutine 3 -> Read Peer
-
-All running simultaneously.
-
-Without Mutex:
-
-    Race Condition
-    Corrupted Data
-    Crash
-
-Solution:
-
-    mu.Lock()
-
-Only one goroutine can enter.
-
-    G1 enters
-    G2 waits
-    G3 waits
-
-After:
-
-    mu.Unlock()
-
-Next goroutine proceeds.
-
-RWMutex = Read Write Mutex
-
-Allows:
-
-    Multiple Readers ✓
-    Single Writer ✓
-
-Methods:
-
-    mu.RLock()
-    mu.RUnlock()
-
-    mu.Lock()
-    mu.Unlock()
-
-
-7. WHY USE A CONSTRUCTOR FUNCTION?
-----------------------------------
-
-Java:
-
-    TCPTransport t =
-        new TCPTransport(":3000");
-
-Go does not have constructors.
-
-Convention:
-
-    func NewTCPTransport(...) {...}
-
-The "New" prefix is Go's standard way of creating objects.
-
-
-8. WHAT DOES &TCPTransport{} MEAN?
-----------------------------------
-
-Without '&':
-
-    t := TCPTransport{}
-
-Creates the actual struct value.
-
-With '&':
-
-    t := &TCPTransport{}
-
-Creates the struct and returns its address.
-
-Visual:
-
-    TCPTransport
-    Address: 0x12345
-
-Variable stores:
-
-    0x12345
-
-instead of the full object.
-
-This is called a Pointer.
-
-
-9. WHY RETURN Transport INSTEAD OF TCPTransport?
-------------------------------------------------
-
-Function:
-
-    func NewTCPTransport(...) Transport
-
-returns:
-
-    &TCPTransport{}
-
-Reason:
-
-    TCPTransport implements Transport.
-
-Similar Java Example:
-
-    Animal a = new Dog();
-
-Go Equivalent:
-
-    var t Transport = &TCPTransport{}
-
-Benefits:
-
-    Later we can create:
-
-        TCPTransport
-        UDPTransport
-        WebsocketTransport
-
-and use all of them through the same interface.
-
-
-10. MENTAL MODEL
-----------------
-
-Whenever you see TCPTransport, imagine:
-
-    TCPTransport
-    │
-    ├── Address
-    │     ":3000"
-    │
-    ├── TCP Listener
-    │     Waits for connections
-    │
-    ├── Mutex
-    │     Protects shared data
-    │
-    └── Peer Map
-          Stores connected nodes
-
-This struct is essentially the Network Manager
-for one GoOrbit node.
-
-===============================================================================
-END NOTES
-===============================================================================
 */
