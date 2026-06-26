@@ -3,97 +3,147 @@ package p2p
 import (
 	"fmt"
 	"net"
-	"sync"
 )
 
 
+// ----------------------------------------
+// ----------------TCP Peer----------------
+// ----------------------------------------
+
 // TCP Peer represents the remote node over a TCP established connection
 type TCPPeer struct {
-    // conn is the underlying connection of the peer
-    conn net.Conn
+	// conn is the underlying connection of the peer
+	conn net.Conn
 
-    // If we dial and retrieve a connection => outbound == true
-    // If we accept and retrive a connection => outbound == false
-    outbound bool
+	// If we dial and retrieve a connection => outbound == true
+	// If we accept and retrive a connection => outbound == false
+	outbound bool
 }
 
-func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer{
-    return &TCPPeer{
-        conn : conn,
-        outbound : outbound,
-    }
+// NewTCPPeer wraps a TCP connection and records whether it was
+// established as an outbound or inbound connection.
+func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
+	return &TCPPeer{
+		conn:     conn,
+		outbound: outbound,
+	}
 }
 
-type TCPTransportOpts struct{
-        ListenAddr string
-        HandshakeFunc HandshakeFunc
-        Decoder Decoder
+// Close implements the Peer interface.
+func (p *TCPPeer) Close() error {
+	return p.conn.Close()
 }
 
+
+// ----------------------------------------
+// ------------Transport Options-----------
+// ----------------------------------------
+
+type TCPTransportOpts struct {
+	ListenAddr    string
+	HandshakeFunc HandshakeFunc
+	Decoder       Decoder
+    OnPeer        func(Peer) error
+}
+
+
+// ----------------------------------------
+// -------------TCP Transport--------------
+// ----------------------------------------
 
 // TCPTransport manages peer-to-peer communication over TCP.
 type TCPTransport struct {
-    TCPTransportOpts
-	listenAddress string // Address this node listens on (e.g. ":3000")
+	TCPTransportOpts
 	listener net.Listener // TCP listener that accepts incoming connections.
-    shakeHands HandshakeFunc
-    decoder Decoder
-
-	mu sync.RWMutex // Protects concurrent access to peers.
-	peers map[net.Addr]Peer // Connected peers indexed by network address.
+	rpcch    chan RPC
 }
 
-func NewTCPTransport(opts TCPTransportOpts) *TCPTransport{
-    return &TCPTransport{
-        TCPTransportOpts: opts,
-    }
+// NewTCPTransport creates and initializes a TCP transport instance.
+func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
+	return &TCPTransport{
+		TCPTransportOpts: opts,
+		rpcch:            make(chan RPC),
+	}
 }
 
-func (t *TCPTransport) ListenAndAccept() error{
-    var err error
-    ln, err := net.Listen("tcp",t.ListenAddr) 
-    if err != nil{
-        return err
-}
-    t.listener = ln
-
-    go t.startAcceptLoop()
-
-    return nil
+// Consume returns a read-only channel used to receive decoded RPC messages.
+func (t *TCPTransport) Consume() <-chan RPC {
+	return t.rpcch
 }
 
+// ListenAndAccept starts listening on the configured TCP address and
+// launches the accept loop in a separate goroutine.
+func (t *TCPTransport) ListenAndAccept() error {
+	var err error
+	ln, err := net.Listen("tcp", t.ListenAddr)
+	if err != nil {
+		return err
+	}
+	t.listener = ln
 
-func (t *TCPTransport) startAcceptLoop(){
-     for {
-        conn, err := t.listener.Accept()
-        if err != nil {
-            fmt.Printf("TCP accept error: %s\n",err)
-        }
-        fmt.Printf("new incoming connection %+v\n",conn)
-        go t.handleConn(conn)
-     }
+	go t.startAcceptLoop()
+
+	return nil
 }
 
-func (t *TCPTransport) handleConn(conn net.Conn){
-    peer := NewTCPPeer(conn, false)
-
-    if err := t.HandshakeFunc(peer); err !=nil {
-        conn.Close()
-        fmt.Printf("TCP HandShake Error: %s\n",err)
-        return 
-    }
-  
-    // Read Loop
-    msg := &Message{}
-for {
-    if err := t.Decoder.Decode(conn, msg); err!= nil{
-        fmt.Printf("TCP error: %s\n",err)
-        continue
-    }
-
-    fmt.Printf("Message: %+v\n", msg)
+// startAcceptLoop continuously accepts incoming TCP connections and
+// spawns a goroutine to handle each peer independently.
+func (t *TCPTransport) startAcceptLoop() {
+	for {
+		conn, err := t.listener.Accept()
+		if err != nil {
+			fmt.Printf("TCP accept error: %s\n", err)
+		}
+		fmt.Printf("new incoming connection %+v\n", conn)
+		go t.handleConn(conn)
+	}
 }
+
+// handleConn performs the peer handshake and continuously reads
+// incoming RPC messages until the connection is closed.
+func (t *TCPTransport) handleConn(conn net.Conn) {
+	var err error
+
+    defer func(){
+		fmt.Printf("Dropping peer connection: %s",err)
+		conn.Close()
+    }()
+	peer := NewTCPPeer(conn,true)
+
+	if err = t.HandshakeFunc(peer); err != nil {
+		return
+	}
+
+	if t.OnPeer != nil {
+		if err = t.OnPeer(peer); err!=nil{
+			return
+		}
+	}
+
+	// Read Loop
+	rpc := RPC{}
+	for {
+		if err := t.Decoder.Decode(conn, &rpc); err != nil {
+			fmt.Printf("TCP error: %s\n", err)
+			continue
+		}
+
+		rpc.From = conn.RemoteAddr()
+		t.rpcch <- rpc
+	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 /*
 - Each GoOrbit node needs a networking component.
@@ -106,8 +156,6 @@ for {
 If we already have TCP, why create TCPTransport?
 Ans: TCP is just a protocol.TCPTransport is OUR object that USES TCP.
 */
-
-
 
 // Function Explanations
 // 1. ListenAndAccept
@@ -362,4 +410,3 @@ is closed or an error occurs.
 This is why networking code almost always
 contains a read loop.
 */
-
