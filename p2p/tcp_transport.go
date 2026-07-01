@@ -5,7 +5,6 @@ import (
 	"net"
 )
 
-
 // ----------------------------------------
 // ----------------TCP Peer----------------
 // ----------------------------------------
@@ -54,8 +53,9 @@ type TCPTransportOpts struct {
 // TCPTransport manages peer-to-peer communication over TCP.
 type TCPTransport struct {
 	TCPTransportOpts
-	listener net.Listener // TCP listener that accepts incoming connections.
 	rpcch    chan RPC
+
+	listener net.Listener // TCP listener that accepts incoming connections.
 }
 
 // NewTCPTransport creates and initializes a TCP transport instance.
@@ -123,11 +123,10 @@ func (t *TCPTransport) handleConn(conn net.Conn) {
 	// Read Loop
 	rpc := RPC{}
 	for {
-		if err := t.Decoder.Decode(conn, &rpc); err != nil {
-			fmt.Printf("TCP error: %s\n", err)
-			continue
+		err := t.Decoder.Decode(conn, &rpc)
+		if err!=nil{
+			return
 		}
-
 		rpc.From = conn.RemoteAddr()
 		t.rpcch <- rpc
 	}

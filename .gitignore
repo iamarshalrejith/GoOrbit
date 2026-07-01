@@ -19,3 +19,6 @@ bin/
 # IDEs
 .vscode/
 .idea/
+
+# Test storage output
+mygallery/
