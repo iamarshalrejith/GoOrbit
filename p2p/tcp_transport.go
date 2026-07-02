@@ -108,7 +108,7 @@ func (t *TCPTransport) handleConn(conn net.Conn) {
 		fmt.Printf("Dropping peer connection: %s",err)
 		conn.Close()
     }()
-	peer := NewTCPPeer(conn,true)
+	peer := NewTCPPeer(conn,false)
 
 	if err = t.HandshakeFunc(peer); err != nil {
 		return

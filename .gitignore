@@ -21,4 +21,4 @@ bin/
 .idea/
 
 # Test storage output
-mygallery/
+storage/
