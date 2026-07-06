@@ -30,6 +30,11 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	}
 }
 
+// RemoteAddr implements the peer interface and will return the Remote address of its the underlying connection
+func (p *TCPPeer) RemoteAddr() net.Addr{
+	return p.conn.RemoteAddr()
+}
+
 // Close implements the Peer interface.
 func (p *TCPPeer) Close() error {
 	return p.conn.Close()
@@ -68,17 +73,6 @@ func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 	}
 }
 
-// Consume returns a read-only channel used to receive decoded RPC messages.
-func (t *TCPTransport) Consume() <-chan RPC {
-	return t.rpcch
-}
-
-// Close implements the transport interface
-func (t *TCPTransport) Close() error{
-	return t.listener.Close()
-}
-
-
 // ListenAndAccept starts listening on the configured TCP address and
 // launches the accept loop in a separate goroutine.
 func (t *TCPTransport) ListenAndAccept() error {
@@ -107,21 +101,23 @@ func (t *TCPTransport) startAcceptLoop() {
 		if err != nil {
 			fmt.Printf("TCP accept error: %s\n", err)
 		}
-		fmt.Printf("new incoming connection %+v\n", conn)
-		go t.handleConn(conn)
+		fmt.Printf("New incoming connection %+v\n", conn)
+		go t.handleConn(conn, false)
 	}
 }
 
 // handleConn performs the peer handshake and continuously reads
 // incoming RPC messages until the connection is closed.
-func (t *TCPTransport) handleConn(conn net.Conn) {
+func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	var err error
 
     defer func(){
 		fmt.Printf("Dropping peer connection: %s",err)
-		conn.Close()
+		 if conn != nil {
+        conn.Close()
+    }
     }()
-	peer := NewTCPPeer(conn,false)
+	peer := NewTCPPeer(conn,outbound)
 
 	if err = t.HandshakeFunc(peer); err != nil {
 		return
@@ -145,8 +141,26 @@ func (t *TCPTransport) handleConn(conn net.Conn) {
 	}
 }
 
+// Dial implements the Transport interface.
+func (t *TCPTransport) Dial(addr string) error {
+    conn, err := net.Dial("tcp", addr)
+    if err != nil {
+        return err
+    }
 
+    go t.handleConn(conn, true)
+    return nil
+}
 
+// Consume returns a read-only channel used to receive decoded RPC messages.
+func (t *TCPTransport) Consume() <-chan RPC {
+	return t.rpcch
+}
+
+// Close implements the transport interface
+func (t *TCPTransport) Close() error{
+	return t.listener.Close()
+}
 
 
 
