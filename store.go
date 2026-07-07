@@ -12,7 +12,45 @@ import (
 	"strings"
 )
 
+// ======================================================
+// Constants
+// ======================================================
+
 const defaultRootFolderName = "storage"
+
+// ======================================================
+// Path Types
+// ======================================================
+
+type PathKey struct {
+	Pathname string
+	Filename string
+}
+
+func (p PathKey) FirstPathName() string {
+	paths := strings.Split(p.Pathname, "/")
+	if len(paths) == 0 {
+		return ""
+	}
+	return paths[0]
+}
+
+func (p PathKey) FullPath() string {
+	return fmt.Sprintf("%s/%s", p.Pathname, p.Filename) // instead of printing to the console, it returns the formatted string.
+}
+
+type PathTransformFunc func(string) PathKey
+
+// ======================================================
+// Path Transform Functions
+// ======================================================
+
+var DefaultPathTransformFunc = func(key string) PathKey {
+	return PathKey{
+		Pathname: key,
+		Filename: key,
+	}
+}
 
 func CASPATHTransformFunc(key string) PathKey {
 	hash := sha1.Sum([]byte(key))
@@ -34,24 +72,9 @@ func CASPATHTransformFunc(key string) PathKey {
 	}
 }
 
-type PathKey struct {
-	Pathname string
-	Filename string
-}
-
-func (p PathKey) FirstPathName() string {
-	paths := strings.Split(p.Pathname, "/")
-	if len(paths) == 0 {
-		return ""
-	}
-	return paths[0]
-}
-
-func (p PathKey) FullPath() string {
-	return fmt.Sprintf("%s/%s", p.Pathname, p.Filename) // instead of printing to the console, it returns the formatted string.
-}
-
-type PathTransformFunc func(string) PathKey
+// ======================================================
+// Store Configuration
+// ======================================================
 
 type StoreOpts struct {
 	// Root is the folder name of the root, containing all the folders/files of the system.
@@ -59,12 +82,9 @@ type StoreOpts struct {
 	PathTransformFunc PathTransformFunc
 }
 
-var DefaultPathTransformFunc = func(key string) PathKey {
-	return PathKey{
-		Pathname: key,
-		Filename: key,
-	}
-}
+// ======================================================
+// Store
+// ======================================================
 
 type Store struct {
 	StoreOpts
@@ -83,31 +103,16 @@ func NewStore(opts StoreOpts) *Store {
 	}
 }
 
+// ======================================================
+// Store Operations
+// ======================================================
+
 func (s *Store) Has(key string) bool {
 	pathKey := s.PathTransformFunc(key)
 	fullPathWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FullPath())
 
 	_, err := os.Stat(fullPathWithRoot)
 	return !errors.Is(err, os.ErrNotExist)
-}
-
-func (s *Store) Clear() error {
-	return os.RemoveAll(s.Root)
-}
-
-func (s *Store) Delete(key string) error {
-	pathKey := s.PathTransformFunc(key)
-	defer func() {
-		log.Printf("Deleted [%s] from Disk", pathKey.Filename)
-	}()
-
-	firstPathNameWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FirstPathName())
-
-	return os.RemoveAll(firstPathNameWithRoot)
-}
-
-func (s *Store) Write(key string, r io.Reader) error {
-	return s.writeStream(key, r)
 }
 
 func (s *Store) Read(key string) (io.Reader, error) {
@@ -124,6 +129,29 @@ func (s *Store) Read(key string) (io.Reader, error) {
 	return buf, err
 
 }
+
+func (s *Store) Write(key string, r io.Reader) error {
+	return s.writeStream(key, r)
+}
+
+func (s *Store) Delete(key string) error {
+	pathKey := s.PathTransformFunc(key)
+	defer func() {
+		log.Printf("Deleted [%s] from Disk", pathKey.Filename)
+	}()
+
+	firstPathNameWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FirstPathName())
+
+	return os.RemoveAll(firstPathNameWithRoot)
+}
+
+func (s *Store) Clear() error {
+	return os.RemoveAll(s.Root)
+}
+
+// ======================================================
+// Internal Helpers
+// ======================================================
 
 func (s *Store) readStream(key string) (io.ReadCloser, error) {
 	pathKey := s.PathTransformFunc(key)

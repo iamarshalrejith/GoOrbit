@@ -7,14 +7,14 @@ import (
 	"net"
 )
 
-// ----------------------------------------
-// ----------------TCP Peer----------------
-// ----------------------------------------
+// ======================================================
+// TCP Peer
+// ======================================================
 
 // TCP Peer represents the remote node over a TCP established connection
 type TCPPeer struct {
 	// conn is the underlying connection of the peer
-	conn net.Conn
+	net.Conn
 
 	// If we dial and retrieve a connection => outbound == true
 	// If we accept and retrive a connection => outbound == false
@@ -25,42 +25,35 @@ type TCPPeer struct {
 // established as an outbound or inbound connection.
 func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	return &TCPPeer{
-		conn:     conn,
+		Conn:     conn,
 		outbound: outbound,
 	}
 }
 
-// RemoteAddr implements the peer interface and will return the Remote address of its the underlying connection
-func (p *TCPPeer) RemoteAddr() net.Addr{
-	return p.conn.RemoteAddr()
+func (p *TCPPeer) Send(b []byte) error {
+	_, err := p.Conn.Write(b)
+	return err
 }
 
-// Close implements the Peer interface.
-func (p *TCPPeer) Close() error {
-	return p.conn.Close()
-}
-
-
-// ----------------------------------------
-// ------------Transport Options-----------
-// ----------------------------------------
+// ======================================================
+// Transport Options
+// ======================================================
 
 type TCPTransportOpts struct {
 	ListenAddr    string
 	HandshakeFunc HandshakeFunc
 	Decoder       Decoder
-    OnPeer        func(Peer) error
+	OnPeer        func(Peer) error
 }
 
-
-// ----------------------------------------
-// -------------TCP Transport--------------
-// ----------------------------------------
+// ======================================================
+// TCP Transport
+// ======================================================
 
 // TCPTransport manages peer-to-peer communication over TCP.
 type TCPTransport struct {
 	TCPTransportOpts
-	rpcch    chan RPC
+	rpcch chan RPC
 
 	listener net.Listener // TCP listener that accepts incoming connections.
 }
@@ -73,6 +66,10 @@ func NewTCPTransport(opts TCPTransportOpts) *TCPTransport {
 	}
 }
 
+// ======================================================
+// Transport Lifecycle
+// ======================================================
+
 // ListenAndAccept starts listening on the configured TCP address and
 // launches the accept loop in a separate goroutine.
 func (t *TCPTransport) ListenAndAccept() error {
@@ -84,24 +81,33 @@ func (t *TCPTransport) ListenAndAccept() error {
 	t.listener = ln
 
 	go t.startAcceptLoop()
-	log.Printf("TCP transport listening on port: %s\n ",t.ListenAddr)
+	log.Printf("TCP transport listening on port: %s\n ", t.ListenAddr)
 
 	return nil
 }
+
+// Close implements the transport interface
+func (t *TCPTransport) Close() error {
+	return t.listener.Close()
+}
+
+// ======================================================
+// Connection Management
+// ======================================================
 
 // startAcceptLoop continuously accepts incoming TCP connections and
 // spawns a goroutine to handle each peer independently.
 func (t *TCPTransport) startAcceptLoop() {
 	for {
 		conn, err := t.listener.Accept()
-		if errors.Is(err, net.ErrClosed){
+		if errors.Is(err, net.ErrClosed) {
 			return
 		}
 
 		if err != nil {
 			fmt.Printf("TCP accept error: %s\n", err)
 		}
-		fmt.Printf("New incoming connection %+v\n", conn)
+
 		go t.handleConn(conn, false)
 	}
 }
@@ -111,20 +117,20 @@ func (t *TCPTransport) startAcceptLoop() {
 func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	var err error
 
-    defer func(){
-		fmt.Printf("Dropping peer connection: %s",err)
-		 if conn != nil {
-        conn.Close()
-    }
-    }()
-	peer := NewTCPPeer(conn,outbound)
+	defer func() {
+		fmt.Printf("Dropping peer connection: %s", err)
+		if conn != nil {
+			conn.Close()
+		}
+	}()
+	peer := NewTCPPeer(conn, outbound)
 
 	if err = t.HandshakeFunc(peer); err != nil {
 		return
 	}
 
 	if t.OnPeer != nil {
-		if err = t.OnPeer(peer); err!=nil{
+		if err = t.OnPeer(peer); err != nil {
 			return
 		}
 	}
@@ -133,7 +139,7 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	rpc := RPC{}
 	for {
 		err := t.Decoder.Decode(conn, &rpc)
-		if err!=nil{
+		if err != nil {
 			return
 		}
 		rpc.From = conn.RemoteAddr()
@@ -143,33 +149,23 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 
 // Dial implements the Transport interface.
 func (t *TCPTransport) Dial(addr string) error {
-    conn, err := net.Dial("tcp", addr)
-    if err != nil {
-        return err
-    }
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return err
+	}
 
-    go t.handleConn(conn, true)
-    return nil
+	go t.handleConn(conn, true)
+	return nil
 }
+
+// ======================================================
+// Message Transport
+// ======================================================
 
 // Consume returns a read-only channel used to receive decoded RPC messages.
 func (t *TCPTransport) Consume() <-chan RPC {
 	return t.rpcch
 }
-
-// Close implements the transport interface
-func (t *TCPTransport) Close() error{
-	return t.listener.Close()
-}
-
-
-
-
-
-
-
-
-
 
 /*
 - Each GoOrbit node needs a networking component.

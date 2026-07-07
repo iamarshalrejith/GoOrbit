@@ -1,25 +1,27 @@
 package main
 
 import (
+	"bytes"
 	"log"
+	"strings"
+	"time"
 
 	"github.com/iamarshalrejith/GoOrbit/p2p"
 )
 
-
-func makeServer(listenAddr string, nodes ...string) *FileServer{
+func makeServer(listenAddr string, nodes ...string) *FileServer {
 	tcpTransportOpts := p2p.TCPTransportOpts{
 		ListenAddr:    listenAddr,
 		HandshakeFunc: p2p.NOPHandshakeFunc,
-		Decoder: p2p.DefaultDecoder{},
+		Decoder:       p2p.DefaultDecoder{},
 	}
 	tcpTransport := p2p.NewTCPTransport(tcpTransportOpts)
 
 	fileServerOpts := FileServerOpts{
-		StorageRoot:       listenAddr + "_network",
+		StorageRoot:       strings.ReplaceAll(listenAddr, ":", "") + "_network",
 		PathTransformFunc: CASPATHTransformFunc,
-		Transport:    tcpTransport,
-		BootstrapNodes: nodes,
+		Transport:         tcpTransport,
+		BootstrapNodes:    nodes,
 	}
 
 	s := NewFileServer(fileServerOpts)
@@ -30,11 +32,19 @@ func makeServer(listenAddr string, nodes ...string) *FileServer{
 }
 
 func main() {
-	s1 := makeServer(":3000","")
-	s2 := makeServer(":4000",":3000")
-	go func(){
+	s1 := makeServer(":3000", "")
+	s2 := makeServer(":4000", ":3000")
+	go func() {
 		log.Fatal(s1.Start())
 	}()
 
-	s2.Start()
+	time.Sleep(3 * time.Second)
+	go s2.Start()
+
+	time.Sleep(3 * time.Second)
+	data := bytes.NewReader([]byte("My big data file here!"))
+
+	s2.StoreData("myprivatedata", data)
+
+	select {}
 }
