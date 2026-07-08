@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 )
 
 // ======================================================
@@ -19,6 +20,8 @@ type TCPPeer struct {
 	// If we dial and retrieve a connection => outbound == true
 	// If we accept and retrive a connection => outbound == false
 	outbound bool
+
+	Wg *sync.WaitGroup
 }
 
 // NewTCPPeer wraps a TCP connection and records whether it was
@@ -27,6 +30,7 @@ func NewTCPPeer(conn net.Conn, outbound bool) *TCPPeer {
 	return &TCPPeer{
 		Conn:     conn,
 		outbound: outbound,
+		Wg:		  &sync.WaitGroup{},
 	}
 }
 
@@ -114,6 +118,8 @@ func (t *TCPTransport) startAcceptLoop() {
 
 // handleConn performs the peer handshake and continuously reads
 // incoming RPC messages until the connection is closed.
+
+// it should handle the Gob message.
 func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 	var err error
 
@@ -142,8 +148,12 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 		if err != nil {
 			return
 		}
-		rpc.From = conn.RemoteAddr()
+		rpc.From = conn.RemoteAddr().String()
+		peer.Wg.Add(1)
+		fmt.Println("Waiting till stream is done")
 		t.rpcch <- rpc
+		peer.Wg.Wait()
+		fmt.Println("Stream done continuing normal read loop")
 	}
 }
 

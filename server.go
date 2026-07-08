@@ -32,15 +32,9 @@ type FileServer struct {
 // Message Types
 // ======================================================
 
-// This will be travelling over the transport and payload can be anything - so today we have DataMessage for the payload.Tommorow it may change - we can have any kind of paylaods like pingmessage. So we are having "any" in Payload
+// This will be travelling over the transport and payload can be anything
 type Message struct {
-	From    string
 	Payload any
-}
-
-type DataMessage struct {
-	Key  string
-	Data []byte
 }
 
 // ======================================================
@@ -80,6 +74,7 @@ func (s *FileServer) Stop() {
 	close(s.quitch) // When a channel is closed, every goroutine waiting on it immediately wakes up.
 }
 
+// It should handle the file bytes.
 func (s *FileServer) loop() {
 	defer func() {
 		log.Println("File server stopped due to user quit action")
@@ -88,15 +83,26 @@ func (s *FileServer) loop() {
 
 	for {
 		select {
-		case msg := <-s.Transport.Consume():
-			var m Message
-			if err := gob.NewDecoder(bytes.NewReader(msg.Payload)).Decode(&m); err != nil {
+		case rpc := <-s.Transport.Consume():
+			var msg Message
+			if err := gob.NewDecoder(bytes.NewReader(rpc.Payload)).Decode(&msg); err != nil {
 				log.Println(err)
 			}
 
-			if err := s.handleMessage(&m); err != nil {
-				log.Println(err)
+			peer, ok := s.peers[rpc.From]
+			if !ok{
+				panic("Peer not found in peer map")
 			}
+			
+			b := make([]byte,1000)
+			if _, err := peer.Read(b);err != err{
+				panic(err)
+			}
+
+			fmt.Printf("Recv: %s\n",string(msg.Payload.([]byte)))
+			// if err := s.handleMessage(&m); err != nil {
+			// 	log.Println(err)
+			// }
 		case <-s.quitch:
 			return
 		}
@@ -144,24 +150,49 @@ func (s *FileServer) OnPeer(p p2p.Peer) error {
 func (s *FileServer) StoreData(key string, r io.Reader) error {
 	// 1.Store this file to disk
 	// 2. Broadcast this file to all known peers in the network
-	buf := new(bytes.Buffer)
-	tee := io.TeeReader(r, buf)
 
-	if err := s.store.Write(key, tee); err != nil {
+	buf := new(bytes.Buffer)
+	msg := Message{
+		Payload: []byte("storagekey"),
+	}
+
+	if err:= gob.NewEncoder(buf).Encode(msg); err!= nil{
 		return err
 	}
 
-	// After reading, the reader is empty, so we will create a buffer and store data in it
-
-	p := &DataMessage{
-		Key:  key,
-		Data: buf.Bytes(),
+	for _, peer := range s.peers{
+		if err := peer.Send(buf.Bytes());err!=nil{
+			return err
+		}
 	}
-	fmt.Println(buf.Bytes())
-	return s.broadcast(&Message{
-		From:    "todo",
-		Payload: p,
-	})
+
+	payload := []byte("This large file")
+	for _, peer := range s.peers{
+		if err := peer.Send(payload);err!=nil{
+			return err
+		}
+	}
+
+	return nil
+
+	// buf := new(bytes.Buffer)
+	// tee := io.TeeReader(r, buf)
+
+	// if err := s.store.Write(key, tee); err != nil {
+	// 	return err
+	// }
+
+	// // After reading, the reader is empty, so we will create a buffer and store data in it
+
+	// p := &DataMessage{
+	// 	Key:  key,
+	// 	Data: buf.Bytes(),
+	// }
+	// fmt.Println(buf.Bytes())
+	// return s.broadcast(&Message{
+	// 	From:    "todo",
+	// 	Payload: p,
+	// })
 }
 
 func (s *FileServer) broadcast(msg *Message) error {
@@ -177,10 +208,10 @@ func (s *FileServer) broadcast(msg *Message) error {
 // Receiving
 // ======================================================
 
-func (s *FileServer) handleMessage(msg *Message) error {
-	switch v := msg.Payload.(type) {
-	case *DataMessage:
-		fmt.Printf("Recieved Data %+v\n", v)
-	}
-	return nil
-}
+// func (s *FileServer) handleMessage(msg *Message) error {
+// 	switch v := msg.Payload.(type) {
+// 	case *DataMessage:
+// 		fmt.Printf("Recieved Data %+v\n", v)
+// 	}
+// 	return nil
+// }
