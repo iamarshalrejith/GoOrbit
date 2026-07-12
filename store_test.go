@@ -28,9 +28,9 @@ func TestStore(t *testing.T) {
 	key := fmt.Sprintf("mygallery_%d",i)
 
 	data := []byte("Some jpg bytes")
-	if err := s.writeStream(key, bytes.NewReader(data)); err != nil {
-		t.Error(err)
-	}
+	if _, err := s.writeStream(key, bytes.NewReader(data)); err != nil {
+    t.Error(err)
+}
 
 	if ok := s.Has(key); !ok {
 		t.Errorf("Expected to have key %s",key)
