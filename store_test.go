@@ -36,12 +36,16 @@ func TestStore(t *testing.T) {
 		t.Errorf("Expected to have key %s",key)
 	}
 
-	r, err := s.Read(key)
+	_, r, err := s.Read(key)
 	if err != nil {
 		t.Error(err)
 	}
 
-	b, _ := ioutil.ReadAll(r)
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Error(err)
+	}
+
 	if string(b) != string(data) {
 		t.Errorf("want %s have %s", data, b)
 	}
