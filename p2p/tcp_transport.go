@@ -168,9 +168,9 @@ func (t *TCPTransport) handleConn(conn net.Conn, outbound bool) {
 			continue
 		}
 		
-		fmt.Println("Waiting till stream is done")
+		// fmt.Println("Waiting till stream is done")
 		t.rpcch <- rpc
-		fmt.Println("Stream done continuing normal read loop")
+		// fmt.Println("Stream done continuing normal read loop")
 	}
 }
 
