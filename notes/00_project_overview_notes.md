@@ -1,235 +1,660 @@
 # GoOrbit — Project Overview Notes
-# Current State: Network + Storage + Server 
+# Current State: Complete Distributed File Storage System
 
 ---
 
-## WHAT IS GOORBIT?
+# WHAT IS GOORBIT?
 
-GoOrbit is a **Distributed File Storage System**.
+GoOrbit is a **Distributed File Storage System** built in Go.
 
-Think of it like Google Drive — but no company owns it.
+Instead of storing files on one central server, multiple computers (called **nodes**) work together to store and retrieve files over a peer-to-peer network.
 
-Many computers (nodes) talk to each other and together store files across the network.
+Think of it like Google Drive, except there is **no central server**.
 
 ```text
-[Your Computer]  <--->  [Friend's Computer]  <--->  [Server in Germany]
-      │                        │                           │
-      +------------- Shared File Storage -----------------+
+              GoOrbit Network
+
+        +------------------------+
+        |      Node A            |
+        | Stores some files      |
+        +-----------+------------+
+                    |
+                    |
+          TCP Connection
+                    |
+        +-----------+------------+
+        |      Node B            |
+        | Stores some files      |
+        +-----------+------------+
+                    |
+                    |
+          TCP Connection
+                    |
+        +-----------+------------+
+        |      Node C            |
+        | Stores some files      |
+        +------------------------+
 ```
 
-No central server. Files survive even if one node goes down.
+Every node can:
+
+- Store files
+- Retrieve files
+- Send files
+- Receive files
+- Replicate files
+- Communicate with other peers
+
+There is **no master node**.
 
 ---
 
-## WHAT HAVE WE BUILT SO FAR?
+# PROJECT GOAL
+
+The goal of GoOrbit is to learn how real distributed storage systems work by implementing the major building blocks from scratch.
+
+The project demonstrates concepts such as:
+
+- Peer-to-peer networking
+- TCP communication
+- Distributed storage
+- Content-addressable storage
+- Encryption
+- Streaming large files
+- RPC messaging
+- Bootstrapping peers
+
+---
+
+# WHAT HAS BEEN BUILT?
 
 ```text
-GoOrbit — Full Vision
+GoOrbit
+
+├── ✅ P2P Networking
+│      ├── TCP Transport
+│      ├── Peer Connections
+│      ├── Bootstrapping
+│      └── RPC Messaging
 │
-├── ❌ Encryption Layer      (not built yet)
-├── ❌ Streaming Layer       (not built yet)
-├── ❌ File Chunking         (not built yet)
-├── ✅ File Server           ← NEW — coordinates network + storage
-├── ✅ Storage Layer         ← NEW — CAS disk storage
-└── ✅ Network Layer         ← done previously
-       └── TCP Transport
+├── ✅ Distributed File Server
+│      ├── Store Files
+│      ├── Retrieve Files
+│      ├── Broadcast Messages
+│      └── Event Loop
+│
+├── ✅ Storage Layer
+│      ├── Content-addressable paths
+│      ├── Local file management
+│      └── File deletion
+│
+├── ✅ Encryption Layer
+│      ├── AES-CTR Encryption
+│      ├── AES-CTR Decryption
+│      └── Secure Streaming
+│
+├── ✅ Streaming Layer
+│      ├── io.Copy
+│      ├── Stream Encryption
+│      └── Stream Decryption
+│
+└── ✅ Distributed File Replication
+       ├── Broadcast Metadata
+       ├── Send File Streams
+       ├── Retrieve Missing Files
+       └── Synchronize Peers
 ```
 
 ---
 
-## PROJECT FOLDER STRUCTURE
+# PROJECT FOLDER STRUCTURE
 
 ```text
 GoOrbit/
+
+├── main.go
+│      Entry point of the application.
+│      Creates nodes and starts the distributed network.
 │
-├── main.go                      ← Entry point. Wires everything together.
-├── server.go                    ← FileServer — coordinator of network + storage
-├── store.go                     ← Storage engine — saves/reads/deletes files on disk
-├── store_test.go                ← Tests for the storage engine
-├── go.mod                       ← Module name + dependencies
-├── go.sum                       ← Dependency checksums (auto-generated)
-├── Makefile                     ← Shortcuts: make run, make test
+├── server.go
+│      Distributed FileServer implementation.
+│      Coordinates networking and storage.
 │
-├── p2p/                         ← All networking code
-│   ├── transport.go             ← Interfaces (Peer, Transport)
-│   ├── message.go               ← RPC struct (what a message looks like)
-│   ├── handshake.go             ← Handshake function type + NOP placeholder
-│   ├── encoding.go              ← Decoders (DefaultDecoder, GOBDecoder)
-│   ├── tcp_transport.go         ← Full TCP implementation
-│   └── tcp_transport_test.go    ← Tests for TCP transport
+├── store.go
+│      Local storage engine.
+│      Handles reading, writing and deleting files.
 │
-└── notes/                       ← notes
-    ├── 00_project_overview_notes.md      ← This file
-    ├── 01_transport_interfaces_notes.md  ← Peer & Transport interfaces
-    ├── 02_message_notes.md               ← RPC struct
-    ├── 03_handshake_notes.md             ← HandshakeFunc
-    ├── 04_encoding_notes.md              ← Decoders
-    ├── 05_tcp_transport_notes.md         ← TCPPeer, TCPTransport
-    ├── 06_main_notes.md                  ← main.go (updated)
-    ├── 07_go_concepts_notes.md           ← All Go concepts
-    ├── 08_store_notes.md                 ← store.go (CAS storage)
-    ├── 09_store_test_notes.md            ← store_test.go
-    └── 10_server_notes.md               ← server.go (FileServer)
+├── crypto.go
+│      Encryption and decryption utilities.
+│
+├── store_test.go
+│      Tests for storage layer.
+│
+├── crypto_test.go
+│      Tests encryption and decryption.
+│
+├── go.mod
+│
+├── go.sum
+│
+├── Makefile
+│
+├── p2p/
+│   │
+│   ├── transport.go
+│   │      Transport and Peer interfaces.
+│   │
+│   ├── message.go
+│   │      RPC message structure.
+│   │
+│   ├── handshake.go
+│   │      Handshake function type.
+│   │
+│   ├── encoding.go
+│   │      Message decoders.
+│   │
+│   ├── tcp_transport.go
+│   │      Complete TCP implementation.
+│   │
+│   └── tcp_transport_test.go
+│          TCP transport tests.
+│
+└── notes/
+    │
+    ├── 00_project_overview_notes.md
+    ├── 01_transport_interfaces_notes.md
+    ├── 02_message_notes.md
+    ├── 03_handshake_notes.md
+    ├── 04_encoding_notes.md
+    ├── 05_tcp_transport_notes.md
+    ├── 06_main_notes.md
+    ├── 07_go_concepts_notes.md
+    ├── 08_store_notes.md
+    ├── 09_store_test_notes.md
+    ├── 10_server_notes.md
+    ├── 11_crypto_notes.md
+    ├── 12_crypto_test_notes.md
+    ├── 13_message_flow_notes.md
+    ├── 14_project_architecture.md
+    └── 15_end_to_end_execution.md
 ```
 
 ---
 
-## READ ORDER (Correct Learning Sequence)
+# LEARNING ORDER
+
+The best order to understand the project is:
 
 ```text
---- NETWORKING LAYER ---
-1. p2p/transport.go          → Peer & Transport interfaces
-2. p2p/message.go            → What an RPC message is
-3. p2p/handshake.go          → Verification concept
-4. p2p/encoding.go           → How bytes become messages
-5. p2p/tcp_transport.go      → Full TCP implementation
+NETWORKING
 
---- STORAGE LAYER ---
-6. store.go                  → CAS disk storage engine
-7. store_test.go             → How it's tested
+1. transport.go
+2. message.go
+3. handshake.go
+4. encoding.go
+5. tcp_transport.go
 
---- COORDINATION LAYER ---
-8. server.go                 → FileServer wires network + storage
-9. main.go                   → Wires everything, starts the node
+↓
+
+STORAGE
+
+6. store.go
+7. store_test.go
+
+↓
+
+SECURITY
+
+8. crypto.go
+9. crypto_test.go
+
+↓
+
+COORDINATION
+
+10. server.go
+
+↓
+
+APPLICATION
+
+11. main.go
+
+↓
+
+SYSTEM FLOW
+
+12. Message Flow Notes
+13. Architecture Notes
+14. End-to-End Execution Notes
 ```
 
 ---
 
-## WHAT EACH FILE DOES
+# WHAT EACH FILE DOES
 
-| File | Role |
-|------|------|
-| `p2p/transport.go` | Contracts — Peer and Transport interfaces |
-| `p2p/message.go` | RPC struct — shape of every network message |
-| `p2p/handshake.go` | Handshake function type + NOP placeholder |
-| `p2p/encoding.go` | Decode raw TCP bytes into RPC structs |
-| `p2p/tcp_transport.go` | Actual TCP connections, peers, message reading |
-| `store.go` | Save, read, delete files on disk using CAS paths |
-| `store_test.go` | Tests for all store operations |
-| `server.go` | FileServer — coordinates network and storage |
-| `main.go` | Wires everything together and starts the node |
+| File | Responsibility |
+|------|----------------|
+| transport.go | Defines Peer and Transport interfaces |
+| message.go | Defines RPC message format |
+| handshake.go | Defines handshake function |
+| encoding.go | Converts TCP bytes into RPC messages |
+| tcp_transport.go | TCP listener, peers, networking |
+| store.go | Stores and retrieves files |
+| store_test.go | Tests storage functionality |
+| crypto.go | Encrypts and decrypts file streams |
+| crypto_test.go | Tests encryption correctness |
+| server.go | Coordinates storage and networking |
+| main.go | Starts the distributed system |
 
 ---
 
-## THE FULL FLOW — When a Node Starts
+# HIGH LEVEL ARCHITECTURE
 
 ```text
-main.go
-│
-├── Create TCPTransport (:3000)
-│       └── not listening yet
-│
-├── Create FileServer
-│       ├── Transport = TCPTransport
-│       ├── Store → root = "3000_network/"
-│       └── quitch channel ready
-│
-├── Background goroutine (will Stop() after 3 seconds)
-│
-└── s.Start()
-        │
-        ├── Transport.ListenAndAccept()
-        │       → port :3000 open
-        │       → accept loop running (goroutine)
-        │
-        └── loop() ← BLOCKS HERE
-                │
-                select:
-                ├── peer message arrives → print it
-                └── quitch closed (Stop called) → return
-
-        defer: log + Transport.Close()
+                    main.go
+                        │
+                        │
+               Create FileServer
+                        │
+        ┌───────────────┴───────────────┐
+        │                               │
+        │                               │
+   TCP Transport                    Storage
+        │                               │
+        │                               │
+    Peer Network                 Local Files
+        │                               │
+        └───────────────┬───────────────┘
+                        │
+                  FileServer
+                        │
+          Store / Retrieve / Broadcast
 ```
 
 ---
 
-## WHAT IS CONTENT-ADDRESSABLE STORAGE (CAS)?
+# COMPLETE FILE FLOW
 
-Instead of storing files by their name, GoOrbit stores them by their **content hash**.
+When a file is stored:
 
 ```text
-Normal:
-    "vacation.jpg" → stored at /files/vacation.jpg
+User
 
-CAS (GoOrbit):
-    "vacation.jpg" content → SHA1 → hash
-    stored at /3000_network/c5659/96f77/.../c565996f77...
-```
+↓
 
-Benefits:
-```text
-Same content → same location → no duplicates
-Content determines location → rename doesn't affect storage
-Like how Git stores files
+Store("picture.png")
+
+↓
+
+Generate storage path
+
+↓
+
+Encrypt file stream
+
+↓
+
+Save locally
+
+↓
+
+Broadcast metadata
+
+↓
+
+Peers receive metadata
+
+↓
+
+Peers prepare to receive stream
+
+↓
+
+Encrypted bytes streamed
+
+↓
+
+Peers decrypt
+
+↓
+
+Peers store locally
+
+↓
+
+Replication complete
 ```
 
 ---
 
-## KEY GO CONCEPTS USED SO FAR
+# FILE RETRIEVAL FLOW
 
-| Concept | Where Used |
-|---------|------------|
+When a file is requested:
+
+```text
+User
+
+↓
+
+Get("picture.png")
+
+↓
+
+Check local storage
+
+↓
+
+Found?
+
+├── YES
+│
+│   Return file
+│
+└── NO
+
+↓
+
+Broadcast GetFile message
+
+↓
+
+Peers check storage
+
+↓
+
+Peer found file
+
+↓
+
+Peer streams encrypted file
+
+↓
+
+Receive stream
+
+↓
+
+Decrypt stream
+
+↓
+
+Store locally
+
+↓
+
+Return file
+```
+
+---
+
+# NODE STARTUP FLOW
+
+```text
+main()
+
+↓
+
+Create TCP Transport
+
+↓
+
+Create FileServer
+
+↓
+
+Start()
+
+↓
+
+ListenAndAccept()
+
+↓
+
+Open TCP port
+
+↓
+
+Accept incoming peers
+
+↓
+
+Bootstrap to known peers
+
+↓
+
+Receive RPC messages
+
+↓
+
+Store / Retrieve files
+
+↓
+
+Shutdown gracefully
+```
+
+---
+
+# CONTENT-ADDRESSABLE STORAGE (CAS)
+
+The storage layer creates deterministic storage paths using a SHA-1 hash of the file key (typically the filename).
+
+For example:
+
+```text
+photo.png
+
+↓
+
+SHA1
+
+↓
+
+c565996f77...
+
+↓
+
+storage/
+
+↓
+
+c5659/
+
+96f77/
+
+...
+
+↓
+
+c565996f77...
+```
+
+This approach is inspired by Content-Addressable Storage (CAS).
+
+> **Note:** In this project, the file key is hashed to generate the storage path. A true CAS system would hash the file contents instead of the filename.
+
+Benefits include:
+
+- Deterministic storage paths
+- Even directory distribution
+- Fast lookups
+- Reduced directory size
+- Easy future migration to true CAS
+
+---
+
+# KEY GO CONCEPTS USED
+
+| Concept | Usage |
+|---------|------|
 | Interface | Peer, Transport, Decoder |
-| Struct + Embedding | TCPTransport, FileServer, Store |
-| Goroutine | acceptLoop, handleConn, auto-stop in main |
-| Channel | rpcch (messages), quitch (stop signal) |
-| `chan struct{}` | quitch — zero-cost signal |
-| `close(ch)` | Stop() — wakes all waiters |
-| `select` | loop() — wait on multiple channels |
-| Pointer | NewTCPPeer, NewStore, etc. |
-| defer | conn cleanup, Transport.Close() |
-| Function type | HandshakeFunc, PathTransformFunc |
-| `io.Reader` | writeStream, Decode — universal data source |
-| `io.Copy` | efficient data transfer |
-| `os.MkdirAll` | create nested CAS folders |
-| SHA1 + hex | CAS path generation |
+| Struct Embedding | FileServer, TCPTransport |
+| Goroutines | Accept loop, connection handlers |
+| Channels | RPC messages, shutdown signals |
+| select | Wait for multiple events |
+| Mutex | Peer synchronization |
+| defer | Cleanup resources |
+| io.Reader | Universal input stream |
+| io.Writer | Universal output stream |
+| io.Copy | Efficient streaming |
+| bytes.Buffer | Temporary memory buffer |
+| AES Cipher | File encryption |
+| CTR Mode | Streaming encryption |
+| SHA-1 | Storage path generation |
+| binary.Read / Write | Stream metadata |
+| Pointer Receivers | Shared object modification |
 
 ---
 
-## WHAT'S COMING NEXT
+# CURRENT PROJECT STATUS
 
 ```text
-✅ Phase 1: P2P Networking
-   └── TCP connections, listening, reading messages
+Networking                 ✅
 
-✅ Phase 2: Content-Addressable Storage
-   └── Store files by SHA1 hash on disk
+Peer Connections           ✅
 
-✅ Phase 3: File Server
-   └── Coordinator between network and storage
+Bootstrapping              ✅
 
-⬜ Phase 4: Dialing (Connecting TO other nodes)
-   └── Currently we only accept — we don't initiate connections
+RPC Messaging              ✅
 
-⬜ Phase 5: Sending Files Between Nodes
-   └── Upload to one node → replicate to others
+Distributed Storage        ✅
 
-⬜ Phase 6: Encryption
-   └── Encrypt files before storing/sending
+Content-addressable Paths  ✅
 
-⬜ Phase 7: Streaming
-   └── Handle large files without loading into memory
+Encryption                 ✅
+
+Streaming                  ✅
+
+File Replication           ✅
+
+Distributed Retrieval      ✅
+
+Unit Tests                 ✅
 ```
 
 ---
 
-## HOW TO RUN
+# POSSIBLE FUTURE IMPROVEMENTS
 
-```bash
-go run main.go        # run the server (stops after 3 seconds)
-go test ./...         # run all tests
-make run              # via Makefile
-make test             # via Makefile
-```
+```text
+⬜ True Content Hashing
 
-To manually test networking:
-```bash
-# Terminal 1
-go run main.go
+⬜ File Chunking
 
-# Terminal 2 (connect with raw TCP)
-nc localhost 3000
-# type anything → server prints the bytes
+⬜ Replication Factor
+
+⬜ Compression
+
+⬜ Metadata Persistence
+
+⬜ Automatic Peer Discovery
+
+⬜ Distributed Hash Table (DHT)
+
+⬜ Fault Tolerance
+
+⬜ Versioning
+
+⬜ Load Balancing
 ```
 
 ---
+
+# HOW TO RUN
+
+Run the project:
+
+```bash
+go run .
+```
+
+Run all tests:
+
+```bash
+go test ./...
+```
+
+Using Makefile:
+
+```bash
+make run
+
+make test
+```
+
+---
+
+# TYPICAL DEMONSTRATION
+
+A complete demonstration looks like:
+
+```text
+Start Node A
+
+↓
+
+Start Node B
+
+↓
+
+Start Node C
+
+↓
+
+Bootstrap connections established
+
+↓
+
+Store file on Node C
+
+↓
+
+File encrypted
+
+↓
+
+Stored locally
+
+↓
+
+Metadata broadcast
+
+↓
+
+File replicated to peers
+
+↓
+
+Delete local copy
+
+↓
+
+Request file again
+
+↓
+
+Peer streams encrypted file
+
+↓
+
+File decrypted while receiving
+
+↓
+
+Stored locally
+
+↓
+
+File returned successfully
+```
+
+---
+
+# PROJECT SUMMARY
+
+GoOrbit combines several important distributed systems concepts into one project.
+
+It demonstrates how independent nodes communicate over TCP, exchange RPC messages, securely stream encrypted files, and coordinate storage without relying on a central server.
+
+By completing this project, you gain hands-on experience with networking, concurrency, storage systems, cryptography, streaming, and distributed system design—the same foundational ideas used in systems like Git, BitTorrent, IPFS, Dropbox, and distributed object storage platforms.

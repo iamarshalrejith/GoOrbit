@@ -1,4 +1,4 @@
-# transport.go — Interfaces (Blueprints)
+# transport.go — Networking Contracts (Interfaces)
 
 ---
 

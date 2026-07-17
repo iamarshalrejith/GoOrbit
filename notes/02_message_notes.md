@@ -1,4 +1,4 @@
-# message.go — What is a Message?
+# message.go — RPC Message Container
 
 ---
 
